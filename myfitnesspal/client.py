@@ -3,6 +3,7 @@ import logging
 import re
 
 import lxml.html
+from __builtin__ import len
 from measurement.measures import Energy, Weight, Volume
 import requests
 from collections import OrderedDict
@@ -14,6 +15,7 @@ from .entry import Entry
 from .keyring_utils import get_password_from_keyring
 from .meal import Meal
 from .note import Note
+from .exercise import Exercise
 
 
 logger = logging.getLogger(__name__)
@@ -344,13 +346,15 @@ class Client(MFPBase):
         # allow the day object to run the request if necessary.
         notes = lambda: self._get_notes(date)
         water = lambda: self._get_water(date)
+        exercise = lambda: self._get_exercise(date)
 
         day = Day(
             date=date,
             meals=meals,
             goals=goals,
             notes=notes,
-            water=water
+            water=water,
+            exercise=exercise
         )
 
         return day
@@ -485,6 +489,23 @@ class Client(MFPBase):
             return value
 
         return Volume(ml=value)
+
+    def _get_exercise(self, date):
+        document = self._get_document_for_url(
+            parse.urljoin(
+                self.BASE_URL_SECURE,
+                '/exercise/diary?',
+            ) + "?date={date}".format(
+                date=date.strftime('%Y-%m-%d')
+            )
+        )
+
+        burnedCaloriesText = document.xpath("(//span[@class='soFar'])[3]/text()")
+        if (burnedCaloriesText != None and len(burnedCaloriesText)>0):
+            burnedCalories = burnedCaloriesText[0].strip()
+            return Exercise(burnedCalories)
+        else:
+            return "0"
 
     def __unicode__(self):
         return u'MyFitnessPal Client for %s' % self.effective_username
